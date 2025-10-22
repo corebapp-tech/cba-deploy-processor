@@ -26,7 +26,8 @@ Thumbs.db
 *.tsbuildinfo
 
 # Processor
-src/processor/
+src/processor/*
+!src/processor/.gitkeep
 
 # Local dev build
 .local
