@@ -1,0 +1,41 @@
+{
+  "name": "cba-deploy-processor",
+  "private": true,
+  "version": "1.0.0-dev",
+  "description": "corebapp deploy processor",
+  "main": "index.js",
+  "workspaces": [
+    "src/processor/*"
+  ],
+  "scripts": {
+    "install-dependencies": "npm install --workspaces --include-workspace-root --include=dev --include=prod",
+    "build": "tsc && npm run build --workspaces --if-present",
+    "set-deploy-env:azure": "node scripts/azure/set-deploy-env.js",
+    "post-deploy:azure": "npm run set-deploy-env:azure node scripts/azure/post-deploy.js",
+    "dev:azure": "npm run build && node scripts/azure/local-dev.js",
+    "deploy:azure": "npm run build && node scripts/serverless-action.js deploy serverless-azure.yml && npm run post-deploy:azure",
+    "remove:azure": "node scripts/serverless-action.js remove serverless-azure.yml"
+  },
+  "keywords": [
+    "Corebapp",
+    "Nano service",
+    "Multi-cloud deployment",
+    "Azure",
+    "Microsoft",
+    "Typescript",
+    "NodeJS"
+  ],
+  "author": "corebapp-tech",
+  "license": "MIT",
+  "devDependencies": {
+    "@azure/functions": "^3.5.1",
+    "@types/node": "^24.3.0",
+    "adm-zip": "^0.5.16",
+    "azure-functions-core-tools": "^4.2.1",
+    "dotenv": "^17.2.1",
+    "serverless": "^3.30.0",
+    "serverless-azure-functions": "^2.2.1",
+    "serverless-dotenv-plugin": "^6.0.0",
+    "typescript": "^5.9.2"
+  }
+}

@@ -1,0 +1,58 @@
+useDotenv: true
+
+service: ${env:DEPLOY_PROCESSOR}
+
+provider:
+  name: azure
+  prefix: ${file(./deploy-config.json):prefix}
+  region: ${env:DEPLOY_REGION}
+  runtime: ${file(./deploy-config.json):runtime}
+  stage: ${opt:stage, 'dev'}
+
+  environment:
+    NODE_ENV: ${self:custom.stages.${self:provider.stage}}
+    LOG_LEVEL: ${self:custom.logLevels.${self:provider.stage}}
+    DEPLOY_PROCESSOR: ${env:DEPLOY_PROCESSOR}
+
+functions:
+  request:
+    handler: dist/core/deploy/handlers/azure/httpRequestHandler.httpRequestHandler
+    events:
+      - http: true
+        authLevel: function
+        methods:
+          - POST
+
+plugins:
+  - serverless-azure-functions
+  - serverless-dotenv-plugin
+
+package:
+  patterns:
+    - 'dist/**'
+    - 'node_modules/**'
+    - 'host.json'
+    - '!src/**'
+    - '!scripts/**'
+    - '!.vscode/**'
+    - '!.local/**'
+    - '!package.json'
+    - '!package-lock.json'
+    - '!tsconfig.json'
+    - '!tsconfig.tsbuildinfo'
+    - '!.prettierrc'
+    - '!README.md'
+
+custom:
+  stages:
+    dev: development
+    prod: production
+  logLevels:
+    dev: 'debug'
+    prod: 'error'
+  hooks:
+    'before:package:createDeploymentArtifacts': npm install --workspaces --include-workspace-root --omit=dev
+  dotenv:
+    path:
+      - src/processor/${env:DEPLOY_PROCESSOR}/.env
+      - src/processor/${env:DEPLOY_PROCESSOR}/.env.${self:provider.stage}

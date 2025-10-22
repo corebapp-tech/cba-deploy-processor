@@ -1,0 +1,4 @@
+{
+  "runtime": "nodejs18",
+  "prefix": "cba-processor"
+}
