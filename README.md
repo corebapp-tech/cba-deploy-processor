@@ -42,6 +42,7 @@ Create a `.env` file in the project root with deployment configuration:
 DEPLOY_STAGE=prod
 DEPLOY_REGION=West Europe
 DEPLOY_PROCESSOR=processor-name
+DEPLOY_POD_CLOUDFLARE_INTERNAL_TOKEN=token
 ```
 
 **Environment Variables:**
