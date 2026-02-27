@@ -208,6 +208,11 @@ export class PodService {
         this.defaultRequestHeaders['Authorization'] = `Bearer ${auth.value}`;
         break;
     }
+    const cloudflareInternalToken =
+      process.env.DEPLOY_POD_CLOUDFLARE_INTERNAL_TOKEN;
+    if (cloudflareInternalToken) {
+      this.defaultRequestHeaders['X-Internal-Token'] = cloudflareInternalToken;
+    }
     this.httpService = new HttpService(baseUrl);
   }
 

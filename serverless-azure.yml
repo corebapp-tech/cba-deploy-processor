@@ -13,6 +13,7 @@ provider:
     NODE_ENV: ${self:custom.stages.${self:provider.stage}}
     LOG_LEVEL: ${self:custom.logLevels.${self:provider.stage}}
     DEPLOY_PROCESSOR: ${env:DEPLOY_PROCESSOR}
+    DEPLOY_POD_CLOUDFLARE_INTERNAL_TOKEN: ${env:DEPLOY_POD_CLOUDFLARE_INTERNAL_TOKEN}
 
 functions:
   request:

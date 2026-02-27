@@ -49,6 +49,7 @@ DEPLOY_PROCESSOR=processor-name
 - `DEPLOY_STAGE`: Deployment environment (e.g., `prod`, `dev`, `staging`)
 - `DEPLOY_REGION`: Azure region for deployment (e.g., `West Europe`, `East US`)
 - `DEPLOY_PROCESSOR`: Name of the processor to deploy from `src/processor/processor-name`
+- `DEPLOY_POD_CLOUDFLARE_INTERNAL_TOKEN`: Secret token included as `X-Internal-Token` request header to bypass Cloudflare Bot Fight Mode when making outbound requests to Pod services
 
 #### Processor `.env` (Processor-level)
 
