@@ -235,11 +235,14 @@ export class PodService {
     };
   }
 
-  push(affectedRecord: string, data: PodPushData): Promise<HttpResponse<any>> {
+  push(
+    affectedRecord: string | null = null,
+    data: PodPushData
+  ): Promise<HttpResponse<any>> {
     return this.httpService.post(`/v1/external/pod/${this.id}`, data, {
       params: {
         ...this.defaultRequestParams,
-        ...{ $record_id: affectedRecord },
+        ...(affectedRecord ? { $record_id: affectedRecord } : {}),
       },
       headers: this.defaultRequestHeaders,
       contentType: 'form-data',
