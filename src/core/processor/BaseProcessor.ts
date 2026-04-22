@@ -26,9 +26,13 @@ export abstract class BaseProcessor {
     this.context.logWarning(`[${this.constructor.name}] ${message}`);
   }
 
+  protected throwValidationError(message: string): void {
+    throw new ValidationError(message);
+  }
+
   protected validateRequired(value: any, fieldName: string): void {
     if (!this.isValidRequiredValue(value)) {
-      throw new ValidationError(`${fieldName} is required`);
+      this.throwValidationError(`Missing required field: ${fieldName}`);
     }
   }
 }
