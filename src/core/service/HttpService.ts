@@ -19,6 +19,7 @@ export interface HttpRequestConfig {
   params?: HttpParams;
   timeout?: number;
   contentType?: 'json' | 'form-data' | 'form-urlencoded';
+  responseType?: 'json' | 'text' | 'blob' | 'arraybuffer';
 }
 
 export interface FormDataField {
@@ -208,18 +209,37 @@ export class HttpService {
   }
 
   private async processResponse<T>(
-    response: Response
+    response: Response,
+    responseType?: 'json' | 'text' | 'blob' | 'arraybuffer'
   ): Promise<HttpResponse<T>> {
     const headers: HttpHeaders = {};
     response.headers.forEach((value, key) => {
       headers[key] = value;
     });
     let data: T;
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      data = (await response.json()) as unknown as T;
+    if (responseType) {
+      switch (responseType) {
+        case 'blob':
+          data = (await response.blob()) as unknown as T;
+          break;
+        case 'arraybuffer':
+          data = (await response.arrayBuffer()) as unknown as T;
+          break;
+        case 'text':
+          data = (await response.text()) as unknown as T;
+          break;
+        case 'json':
+        default:
+          data = (await response.json()) as unknown as T;
+          break;
+      }
     } else {
-      data = (await response.text()) as unknown as T;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = (await response.json()) as unknown as T;
+      } else {
+        data = (await response.text()) as unknown as T;
+      }
     }
     return {
       data,
@@ -249,7 +269,7 @@ export class HttpService {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      return await this.processResponse<T>(response);
+      return await this.processResponse<T>(response, config?.responseType);
     } catch (error) {
       throw new Error(`GET Request failed: ${error}`);
     }
@@ -279,7 +299,7 @@ export class HttpService {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      return await this.processResponse<T>(response);
+      return await this.processResponse<T>(response, config?.responseType);
     } catch (error) {
       throw new Error(`POST Request failed: ${error}`);
     }
@@ -309,7 +329,7 @@ export class HttpService {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      return await this.processResponse<T>(response);
+      return await this.processResponse<T>(response, config?.responseType);
     } catch (error) {
       throw new Error(`PUT Request failed: ${error}`);
     }
@@ -339,7 +359,7 @@ export class HttpService {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      return await this.processResponse<T>(response);
+      return await this.processResponse<T>(response, config?.responseType);
     } catch (error) {
       throw new Error(`PATCH Request failed: ${error}`);
     }
@@ -364,7 +384,7 @@ export class HttpService {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      return await this.processResponse<T>(response);
+      return await this.processResponse<T>(response, config?.responseType);
     } catch (error) {
       throw new Error(`DELETE Request failed: ${error}`);
     }

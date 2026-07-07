@@ -32,6 +32,34 @@ export interface PodCriteria {
   paginate?: Paginate;
 }
 
+export interface PodJsonExposeRawResponse<T = Record<string, any>> {
+  success: {
+    response: {
+      rows: T[];
+      count_rows: number;
+    };
+  };
+}
+
+export interface PodPullResult<T = Record<string, any>> {
+  rows: T[];
+  countRows: number;
+}
+
+/**
+ * Criteria for stream (STREAM expose POD) pull requests.
+ * Accepts either a direct record id or a flat list of filter conditions.
+ * The two options are mutually exclusive — if recordId is provided, filters are ignored.
+ */
+export type PodStreamCriteria =
+  | { recordId: string; filters?: never }
+  | {
+      recordId?: never;
+      filters: Array<{
+        [field: string]: [FilterOperator, string | number | boolean];
+      }>;
+    };
+
 export interface PodPushData {
   [key: string]: any;
 }
@@ -44,6 +72,8 @@ export interface PodUrlData {
   namespace: string;
   domain?: string;
 }
+
+// ─── PodCriteriaBuilder ────────────────────────────────────────────────────────
 
 export class PodCriteriaBuilder {
   private criteria: PodCriteria = {};
@@ -115,6 +145,8 @@ export class PodCriteriaBuilder {
     return JSON.stringify(this.criteria);
   }
 }
+
+// ─── PodCriteriaService ────────────────────────────────────────────────────────
 
 export class PodCriteriaService {
   private builder: PodCriteriaBuilder;
@@ -190,6 +222,8 @@ export class PodCriteriaService {
   }
 }
 
+// ─── PodService ────────────────────────────────────────────────────────────────
+
 export class PodService {
   private id: string;
   private httpService: HttpService;
@@ -199,7 +233,8 @@ export class PodService {
   constructor(podId: string, url: PodUrlData, auth: PodAuth) {
     this.id = podId;
     const domain = url.domain ?? DEFAULT_DOMAIN;
-    let baseUrl: string = `https://service.${url.namespace}.${domain}`;
+    const baseUrl: string = `https://service.${url.namespace}.${domain}`;
+
     switch (auth.type) {
       case 'queryKey':
         this.defaultRequestParams['key'] = auth.value;
@@ -208,13 +243,17 @@ export class PodService {
         this.defaultRequestHeaders['Authorization'] = `Bearer ${auth.value}`;
         break;
     }
+
     const cloudflareInternalToken =
       process.env.DEPLOY_POD_CLOUDFLARE_INTERNAL_TOKEN;
     if (cloudflareInternalToken) {
       this.defaultRequestHeaders['X-Internal-Token'] = cloudflareInternalToken;
     }
+
     this.httpService = new HttpService(baseUrl);
   }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   getAffectedRecordCriteria(
     filters: { field: string; operator: FilterOperator; value: any }[]
@@ -235,6 +274,13 @@ export class PodService {
     };
   }
 
+  // ── Push ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Pushes data to a Push-Inbound POD in Corebapp.
+   * @param affectedRecord  Optional record id for update operations ($record_id query param).
+   * @param data            Key-value payload sent as form-data.
+   */
   push(
     affectedRecord: string | null = null,
     data: PodPushData
@@ -246,6 +292,98 @@ export class PodService {
       },
       headers: this.defaultRequestHeaders,
       contentType: 'form-data',
+    });
+  }
+
+  // ── Pull (JSON) ───────────────────────────────────────────────────────────────
+
+  /**
+   * Pulls data from a JSON Expose POD in Corebapp and unwraps the response.
+   *
+   * The raw response shape is:
+   * { success: { response: { rows: T[], count_rows: number } } }
+   *
+   * This method returns the unwrapped { rows, countRows } directly.
+   *
+   * @param criteria  Optional filters, field projection, sort and pagination.
+   *                  - filters:  { field: [[operator, value], ...] }
+   *                  - fields:   string[] — restrict returned fields
+   *                  - sort:     { field: 'asc' | 'desc' }
+   *                  - paginate: { items: number, page: number }
+   *
+   * @example
+   *   const { rows, countRows } = await podService.pull<Country>({
+   *     filters: { status: [['$eq', 'active']] },
+   *     sort:    { name: 'asc' },
+   *     paginate: { items: 50, page: 1 },
+   *   });
+   */
+  async pull<T = Record<string, any>>(
+    criteria?: PodCriteria
+  ): Promise<PodPullResult<T>> {
+    const params: HttpParams = { ...this.defaultRequestParams };
+    if (criteria && Object.keys(criteria).length > 0) {
+      params['$criteria'] = JSON.stringify(criteria);
+    }
+
+    const response = await this.httpService.get<PodJsonExposeRawResponse<T>>(
+      `/v1/external/pod/${this.id}`,
+      {
+        params,
+        headers: this.defaultRequestHeaders,
+      }
+    );
+
+    const data = response.data;
+    if (!data?.success?.response) {
+      throw new Error(
+        `PodService.pull: unexpected response shape from POD "${this.id}". ` +
+          `Expected { success: { response: { rows, count_rows } } }, got: ${JSON.stringify(data)}`
+      );
+    }
+
+    return {
+      rows: data.success.response.rows,
+      countRows: data.success.response.count_rows,
+    };
+  }
+
+  // ── Pull (Stream) ─────────────────────────────────────────────────────────────
+
+  /**
+   * Pulls a binary file from a STREAM Expose POD in Corebapp.
+   * Use when the Expose POD has response_type "stream" (file_upload field).
+   *
+   * Accepts either a direct record id OR a filter criteria to locate the record.
+   * The two forms are mutually exclusive — provide one, not both.
+   *
+   * @param options
+   *   - `recordId`  — direct record id; sent as `$record_id=<id>` query param.
+   *   - `filters`   — flat array of { field: [operator, value] } objects; sent as
+   *                   `$criteria_object={"filters":[...]}`. Use when the record id
+   *                   is unknown but you can identify the record by a field value.
+   *
+   * @example — by record id
+   *   const file = await podService.pullStream({ recordId: '469984300-abc' });
+   *
+   * @example — by filter
+   *   const file = await podService.pullStream({
+   *     filters: [{ invoice_number: ['$eq', 'INV-2024-001'] }],
+   *   });
+   */
+  pullStream(options: PodStreamCriteria): Promise<HttpResponse<Blob>> {
+    const params: HttpParams = { ...this.defaultRequestParams };
+
+    if ('recordId' in options && options.recordId) {
+      params['$record_id'] = options.recordId;
+    } else if ('filters' in options && options.filters) {
+      params['$criteria_object'] = JSON.stringify({ filters: options.filters });
+    }
+
+    return this.httpService.get<Blob>(`/v1/external/pod/${this.id}`, {
+      params,
+      headers: this.defaultRequestHeaders,
+      responseType: 'blob',
     });
   }
 }
